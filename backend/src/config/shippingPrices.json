@@ -1,0 +1,127 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2024-12-01",
+  "shippingZones": {
+    "CBD": {
+      "basePrice": 150,
+      "perKmPrice": 20,
+      "minOrderAmount": 3000,
+      "estimatedDistance": 5,
+      "estimatedDeliveryDays": 1,
+      "description": "Central Business District",
+      "areas": [
+        "CBD", "Upper Hill", "Westlands CBD", "Parklands", "Kilimani CBD",
+        "Industrial Area", "Ngong Road CBD", "Valley Road", "Moi Avenue",
+        "Tom Mboya Street", "Kenyatta Avenue", "Muindi Mbingu"
+      ],
+      "isAvailable": true
+    },
+    "WEST": {
+      "basePrice": 200,
+      "perKmPrice": 25,
+      "minOrderAmount": 2500,
+      "estimatedDistance": 8,
+      "estimatedDeliveryDays": 1,
+      "description": "Westlands, Lavington, Kileleshwa, Runda",
+      "areas": [
+        "Westlands", "Lavington", "Kileleshwa", "Runda", "Muthaiga",
+        "Gigiri", "Ridgeways", "Spring Valley", "Muthangari", "Kitisuru",
+        "Nyari Estate", "Rosslyn", "Mlimani", "Lower Kabete"
+      ],
+      "isAvailable": true
+    },
+    "SOUTH": {
+      "basePrice": 250,
+      "perKmPrice": 30,
+      "minOrderAmount": 2500,
+      "estimatedDistance": 12,
+      "estimatedDeliveryDays": 1,
+      "description": "Karen, Langata, South B/C, Nairobi West",
+      "areas": [
+        "Karen", "Langata", "Adams Arcade", "Nyayo Estate", "South B",
+        "South C", "Madaraka", "Nairobi West", "Woodley", "Nyayo Stadium",
+        "Mbagathi", "Wilson Airport", "Dagoretti Corner", "Karen Blixen"
+      ],
+      "isAvailable": true
+    },
+    "EAST": {
+      "basePrice": 250,
+      "perKmPrice": 30,
+      "minOrderAmount": 2000,
+      "estimatedDistance": 10,
+      "estimatedDeliveryDays": 1,
+      "description": "Eastleigh, Embakasi, Buruburu, Umoja",
+      "areas": [
+        "Eastleigh", "Embakasi", "Donholm", "Buruburu", "Umoja",
+        "Kariobangi", "Dandora", "Kayole", "Utawala", "Mihang'o",
+        "Fedha Estate", "Pipeline", "Imara Daima", "Komarock"
+      ],
+      "isAvailable": true
+    },
+    "NORTH": {
+      "basePrice": 200,
+      "perKmPrice": 25,
+      "minOrderAmount": 2000,
+      "estimatedDistance": 8,
+      "estimatedDeliveryDays": 1,
+      "description": "Kasarani, Roysambu, Zimmerman, Kahawa",
+      "areas": [
+        "Kasarani", "Roysambu", "Zimmerman", "Kahawa", "Ruiru CBD",
+        "Kahawa West", "Kahawa Sukari", "Githurai", "Kiamumbi", "Njiru"
+      ],
+      "isAvailable": true
+    },
+    "OUTSKIRTS": {
+      "basePrice": 350,
+      "perKmPrice": 40,
+      "minOrderAmount": 5000,
+      "estimatedDistance": 25,
+      "estimatedDeliveryDays": 1,
+      "description": "Outskirts: Ruiru, Kitengela, Rongai, Thika",
+      "areas": [
+        "Ruiru", "Juja", "Thika", "Athi River", "Kitengela",
+        "Ongata Rongai", "Kiserian", "Ngong", "Limuru", "Kiambu",
+        "Syokimau", "Mlolongo", "Tala", "Kikuyu", "Machakos",
+        "Mavoko", "Athi River", "Boma", "Konza", "Matuu"
+      ],
+      "isAvailable": true
+    },
+    "OTHER": {
+      "basePrice": 300,
+      "perKmPrice": 35,
+      "minOrderAmount": 3000,
+      "estimatedDistance": 15,
+      "estimatedDeliveryDays": 1,
+      "description": "Other Nairobi areas",
+      "areas": [
+        "Kawangware", "Dagoretti", "Kibera", "Mathare", "Hurlingham",
+        "Mountain View", "Baba Dogo", "Kangemi", "Githurai 45",
+        "Mwiki", "Kariobangi South", "Mathare North", "Umoja 2"
+      ],
+      "isAvailable": true
+    },
+    "DEFAULT": {
+      "basePrice": 400,
+      "perKmPrice": 50,
+      "minOrderAmount": 0,
+      "estimatedDistance": 30,
+      "estimatedDeliveryDays": 2,
+      "description": "Default shipping for unknown areas",
+      "areas": [],
+      "isAvailable": true
+    }
+  },
+  "freeShippingThreshold": 5000,
+  "sameDayDelivery": {
+    "available": true,
+    "cutoffTime": "14:00",
+    "additionalCharge": 100,
+    "areas": ["CBD", "WEST", "SOUTH"]
+  },
+  "expressDelivery": {
+    "available": true,
+    "additionalCharge": 200,
+    "deliveryHours": 3,
+    "areas": ["CBD", "WEST"]
+  }
+}

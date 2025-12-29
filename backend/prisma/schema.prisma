@@ -1,0 +1,348 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id              String        @id @default(cuid())
+  email           String        @unique
+  name            String?
+  phone           String?
+  password        String
+  role            String        @default("CUSTOMER")
+  
+  // Relations
+  addresses       Address[]
+  prescriptions   Prescription[]
+  orders          Order[]
+  
+  // Cart relations
+  cart            Cart?
+  
+  // M-Pesa transactions
+  transactions    Transaction[]
+  
+  // Notifications
+  notifications         Notification[]
+  notificationPreference NotificationPreference?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("users")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  image       String?
+  parentId    String?
+  
+  // Self-referential relation for hierarchy
+  parent      Category?   @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[]  @relation("CategoryHierarchy")
+  
+  // Products in this category
+  products    Product[]
+  
+  // Level in hierarchy
+  level       Int      @default(0)
+  
+  // For easy querying of leaf categories
+  isLeaf      Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("categories")
+}
+
+model Brand {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  logo        String?
+  products    Product[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("brands")
+}
+
+model Condition {
+  id          String            @id @default(cuid())
+  name        String
+  slug        String            @unique
+  description String?
+  products    ProductCondition[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@map("conditions")
+}
+
+model Product {
+  id                    String              @id @default(cuid())
+  name                  String
+  slug                  String              @unique
+  description           String?
+  price                 Float
+  salePrice             Float?
+  images                String              // JSON string of image URLs
+  sku                   String              @unique
+  inStock               Boolean             @default(true)  // CHANGED FROM stock Int
+  prescriptionRequired  Boolean             @default(false)
+  ingredients           String?
+  usageInstructions     String?
+  
+  // Category relationship
+  category              Category            @relation(fields: [categoryId], references: [id])
+  categoryId            String
+  
+  // Brand relationship
+  brand                 Brand?              @relation(fields: [brandId], references: [id])
+  brandId               String?
+  
+  // Many-to-many with conditions through ProductCondition
+  conditions            ProductCondition[]
+  
+  // Orders and cart items
+  orderItems            OrderItem[]
+  cartItems             CartItem[]
+  
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@map("products")
+}
+
+// Many-to-many junction table for Product-Condition
+model ProductCondition {
+  id          String    @id @default(cuid())
+  product     Product   @relation(fields: [productId], references: [id])
+  productId   String
+  condition   Condition @relation(fields: [conditionId], references: [id])
+  conditionId String
+  createdAt   DateTime  @default(now())
+
+  @@unique([productId, conditionId])
+  @@map("product_conditions")
+}
+
+model Cart {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id])
+  userId    String    @unique
+  items     CartItem[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String  @id @default(cuid())
+  cart      Cart    @relation(fields: [cartId], references: [id])
+  cartId    String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int     @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @default(now()) // ADD DEFAULT VALUE
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+model Order {
+  id                 String        @id @default(cuid())
+  user               User          @relation(fields: [userId], references: [id])
+  userId             String
+
+  orderNumber        String        @unique
+
+  subtotal           Float         @default(0)
+  shippingCost       Float         @default(0)
+  shippingMethod     String        @default("STANDARD")
+
+  totalAmount        Float
+  status             String        @default("PENDING")
+  paymentStatus      String        @default("PENDING")
+  paymentMethod      String        @default("CASH")
+
+  // ====== DELIVERY INSTRUCTIONS ======
+  deliveryInstructions String?     
+  
+  // Additional contact info
+  contactPhone       String?
+  
+  // ===================================
+
+  // M-Pesa transaction reference
+  transaction        Transaction?
+  transactionId      String?       @unique
+
+  prescription       Prescription? @relation(fields: [prescriptionId], references: [id])
+  prescriptionId     String?       @unique
+
+  address            Address       @relation(fields: [addressId], references: [id])
+  addressId          String
+
+  items              OrderItem[]
+  shipping           Shipping?
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt @default(now())
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id       String  @id @default(cuid())
+  order    Order   @relation(fields: [orderId], references: [id])
+  orderId  String
+  product  Product @relation(fields: [productId], references: [id])
+  productId String
+  quantity Int
+  price    Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @default(now())
+
+  @@map("order_items")
+}
+
+model Prescription {
+  id          String    @id @default(cuid())
+  user        User      @relation(fields: [userId], references: [id])
+  userId      String
+  image       String
+  status      String    @default("PENDING")
+  approvedBy  String?
+  order       Order?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt @default(now())
+  
+  @@map("prescriptions")
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String
+  title       String
+  message     String
+  data        String?  // Store as JSON string for SQLite
+  isRead      Boolean  @default(false)
+  isEmailSent Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  readAt      DateTime?
+  updatedAt   DateTime @updatedAt @default(now()) // ADDED with default
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([createdAt])
+  @@index([isRead])
+  
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  emailOrders    Boolean  @default(true)
+  emailPromotions Boolean @default(true)
+  emailStock     Boolean  @default(true)
+  pushOrders     Boolean  @default(true)
+  pushPromotions Boolean  @default(false)
+  pushStock      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt @default(now())
+  
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("notification_preferences")
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  street      String
+  city        String
+  state       String
+  zipCode     String
+  country     String   @default("Kenya")
+  isDefault   Boolean  @default(false)
+  orders      Order[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt @default(now())
+  
+  @@map("addresses")
+}
+
+// ============ M-PESA TRANSACTION MODEL ============
+model Transaction {
+  id                   String   @id @default(cuid())
+  
+  // MPESA Transaction Details
+  mpesaTransactionId   String   @unique
+  checkoutRequestID    String?  @unique
+  phoneNumber          String
+  amount               Float
+  status               String   @default("PENDING") // PENDING, SUCCESS, FAILED
+  mpesaReceiptNumber   String?
+  
+  // Order Reference
+  orderId              String?  @unique
+  
+  // User who made the payment
+  userId               String
+  
+  // Additional Details
+  accountReference     String?
+  transactionDesc      String?
+  resultCode           String?
+  resultDesc           String?
+  callbackData         String?  // Store as JSON string
+  
+  // Timestamps
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt @default(now())
+  
+  // Relationships
+  order  Order?  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([status])
+  @@index([mpesaTransactionId])
+  @@index([checkoutRequestID])
+  @@index([createdAt])
+  
+  @@map("transactions")
+}
+
+model Shipping {
+  id                  String   @id @default(cuid())
+  order               Order    @relation(fields: [orderId], references: [id])
+  orderId             String   @unique
+  trackingNumber      String?
+  carrier             String   @default("COURIER")
+  status              String   @default("PENDING") // PENDING, SHIPPED, IN_TRANSIT, DELIVERED
+  estimatedDelivery   DateTime?
+  actualDelivery      DateTime?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt @default(now())
+  
+  @@map("shippings")
+}
