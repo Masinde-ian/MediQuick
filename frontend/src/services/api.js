@@ -1,4 +1,4 @@
-// services/api.js - UPDATED WITH NEW MPESA FLOW
+// services/api.js - COMPLETELY FIXED WITH LOWERCASE HEADERS
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -18,12 +18,12 @@ export const setAuthHeader = (token) => {
     // Clean the token (remove any quotes)
     const cleanToken = token.replace(/['"]/g, '');
     
-    // Set for regular API
-    api.defaults.headers.common['Authorization'] = `Bearer ${cleanToken}`;
+    // FIXED: Use lowercase 'authorization' for Axios
+    api.defaults.headers.common['authorization'] = `Bearer ${cleanToken}`;
     
     console.log('🔐 Auth header set globally for the Axios instance');
   } else {
-    delete api.defaults.headers.common['Authorization'];
+    delete api.defaults.headers.common['authorization'];
     console.log('🔐 Auth header cleared globally');
   }
 };
@@ -36,14 +36,22 @@ if (initialToken) {
 
 // ==================== REQUEST INTERCEPTORS ====================
 
-// Request interceptor for regular API
+// Request interceptor for regular API - FIXED
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     
-    if (token && !config.headers.Authorization) {
+    // FIXED: Check lowercase 'authorization' and use lowercase when setting
+    if (token && !config.headers?.authorization) {
       const cleanToken = token.replace(/['"]/g, '');
-      config.headers.Authorization = `Bearer ${cleanToken}`;
+      // FIXED: Set lowercase 'authorization' header
+      config.headers.authorization = `Bearer ${cleanToken}`;
+      
+      // For debugging
+      console.log('🔐 Auth header added to request:', {
+        url: config.url,
+        hasHeader: !!config.headers.authorization
+      });
     }
     
     // Log payment-related requests for debugging
@@ -851,10 +859,96 @@ export const getAuthPhoneNumber = async () => {
 // Product API calls
 export const getAllProducts = (params) => api.get('/products', { params });
 export const getProductBySlug = (slug) => api.get(`/products/${slug}`);
-export const getProductsByCategory = (categorySlug) => api.get(`/products?category=${categorySlug}`);
-export const getProductsByBrand = (brandSlug) => api.get(`/products?brand=${brandSlug}`);
-export const getProductsByCondition = (conditionSlug) => api.get(`/products?condition=${conditionSlug}`);
-export const searchProducts = (query) => api.get('/products/search', { params: { q: query } });
+export const getProductsByCategory = (categorySlug, params) => api.get(`/products?category=${categorySlug}`, { params });
+export const getProductsByBrand = (brandSlug, params) => api.get(`/products?brand=${brandSlug}`, { params });
+export const getProductsByCondition = (conditionSlug, params) => api.get(`/products?condition=${conditionSlug}`, { params });
+
+export const searchProducts = (params) => {
+  let queryParams = {};
+  
+  if (typeof params === 'string') {
+    queryParams = { q: params };
+  } else if (typeof params === 'object' && params !== null) {
+    queryParams = params;
+  }
+  
+  console.log('🔍 Search products API call:', { 
+    endpoint: '/products/search', 
+    params: queryParams 
+  });
+  
+  // Call the updated backend endpoint
+  return api.get('/products/search', { 
+    params: queryParams 
+  });
+};
+
+// Optionally add for the advanced search
+export const searchProductsAdvanced = (params) => {
+  let queryParams = {};
+  
+  if (typeof params === 'string') {
+    queryParams = { q: params };
+  } else if (typeof params === 'object' && params !== null) {
+    queryParams = params;
+  }
+  
+  console.log('🔍 Advanced search API call:', { 
+    endpoint: '/products/search/advanced', 
+    params: queryParams 
+  });
+  
+  return api.get('/products/search/advanced', { 
+    params: queryParams 
+  });
+};
+
+
+export const searchProductsClientSide = async (query, products) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      if (!query || !products || !Array.isArray(products)) {
+        resolve({
+          success: true,
+          data: {
+            products: [],
+            total: 0,
+            count: 0
+          }
+        });
+        return;
+      }
+      
+      const searchTerm = query.toLowerCase().trim();
+      const results = products.filter(product => {
+        if (!product) return false;
+        
+        const name = (product.name || '').toLowerCase();
+        const description = (product.description || '').toLowerCase();
+        const brand = (product.brand?.name || '').toLowerCase();
+        const sku = (product.sku || '').toLowerCase();
+        const category = (product.category?.name || '').toLowerCase();
+        const condition = (product.condition?.name || '').toLowerCase();
+        
+        return name.includes(searchTerm) ||
+               description.includes(searchTerm) ||
+               brand.includes(searchTerm) ||
+               sku.includes(searchTerm) ||
+               category.includes(searchTerm) ||
+               condition.includes(searchTerm);
+      });
+      
+      resolve({
+        success: true,
+        data: {
+          products: results,
+          total: results.length,
+          count: results.length
+        }
+      });
+    }, 300);
+  });
+};
 
 export const checkProductAvailability = async (productId, quantity = 1) => {
   try {
@@ -945,6 +1039,8 @@ export const cartAPI = {
   getItemCount: getCartItemCount
 };
 
+// ==================== PRODUCT API OBJECT ====================
+
 export const productAPI = {
   getAll: getAllProducts,
   getBySlug: getProductBySlug,
@@ -952,6 +1048,8 @@ export const productAPI = {
   getByBrand: getProductsByBrand,
   getByCondition: getProductsByCondition,
   search: searchProducts,
+  searchLocal: searchProductsClientSide,
+  searchAdvanced: searchProductsAdvanced,
   checkAvailability: checkProductAvailability
 };
 

@@ -1,61 +1,155 @@
-// pages/Conditions.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { conditionAPI } from '../../services/api';
-import ProductCard, { ProductCardSkeleton, ProductGrid } from '../../components/ProductCard';
-import { ChevronLeft, AlertCircle, Pill } from 'lucide-react';
+import ProductCard, { ProductCardSkeleton } from '../../components/ProductCard';
+import { ChevronLeft, AlertCircle, Heart, Loader, Filter, ChevronDown } from 'lucide-react';
 
 const Conditions = () => {
   const { slug } = useParams();
   const [products, setProducts] = useState([]);
   const [condition, setCondition] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState({
+    initial: true,
+    loadingMore: false
+  });
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [sortBy, setSortBy] = useState('default');
+  const [showSortOptions, setShowSortOptions] = useState(false);
+  const productsPerPage = 20;
 
   useEffect(() => {
     if (slug) {
-      fetchConditionProducts();
+      fetchConditionData();
+      fetchConditionProducts(1);
     }
   }, [slug]);
 
-  const fetchConditionProducts = async () => {
+  const fetchConditionData = async () => {
     try {
-      setLoading(true);
       setError('');
-      
-      // Fetch condition with products using your API service
       const response = await conditionAPI.getBySlug(slug);
       
       if (response.data?.success) {
         const conditionData = response.data.data;
         setCondition(conditionData);
-        
-        // Extract products from the response
-        if (conditionData.products && Array.isArray(conditionData.products)) {
-          setProducts(conditionData.products);
-        } else {
-          // If products are in a different format
-          setProducts(conditionData.products?.map(pc => pc.product) || []);
-        }
       } else {
         throw new Error('Failed to fetch condition');
       }
     } catch (error) {
-      console.error('Error fetching condition products:', error);
-      setError(error.response?.data?.error || 'Failed to load products for this condition. Please try again.');
+      console.error('Error fetching condition:', error);
+      setError(error.response?.data?.error || 'Failed to load condition information. Please try again.');
       setCondition(null);
-      setProducts([]);
-    } finally {
-      setLoading(false);
     }
   };
 
-  if (loading) {
+  const fetchConditionProducts = async (pageNumber = 1, loadMore = false) => {
+    try {
+      if (loadMore) {
+        setLoading(prev => ({ ...prev, loadingMore: true }));
+      } else {
+        setLoading(prev => ({ ...prev, initial: true }));
+      }
+      
+      setError('');
+      
+      const response = await conditionAPI.getBySlug(slug, {
+        page: pageNumber,
+        limit: productsPerPage
+      });
+      
+      if (response.data?.success) {
+        const conditionData = response.data.data;
+        let productsData = [];
+        let responseTotal = 0;
+        
+        // Extract products from response
+        if (conditionData.products && Array.isArray(conditionData.products)) {
+          productsData = conditionData.products;
+        } else if (conditionData.products?.map) {
+          productsData = conditionData.products.map(pc => pc.product) || [];
+        }
+        
+        // Get total count if available
+        if (conditionData._count?.products) {
+          responseTotal = conditionData._count.products;
+        } else if (conditionData.totalProducts) {
+          responseTotal = conditionData.totalProducts;
+        } else {
+          responseTotal = productsData.length;
+        }
+        
+        if (Array.isArray(productsData)) {
+          if (loadMore) {
+            // Append new products to existing ones
+            setProducts(prev => [...prev, ...productsData]);
+          } else {
+            // Set initial products
+            setProducts(productsData);
+          }
+          
+          // Determine if there are more products to load
+          if (productsData.length < productsPerPage) {
+            setHasMore(false);
+          } else {
+            setHasMore(true);
+          }
+          
+          // Update page state
+          setPage(pageNumber);
+        }
+      } else {
+        throw new Error('Failed to fetch products');
+      }
+    } catch (error) {
+      console.error('Error fetching condition products:', error);
+      setError(error.response?.data?.error || 'Failed to load products. Please try again.');
+      if (!loadMore) {
+        setProducts([]);
+      }
+    } finally {
+      if (loadMore) {
+        setLoading(prev => ({ ...prev, loadingMore: false }));
+      } else {
+        setLoading(prev => ({ ...prev, initial: false }));
+      }
+    }
+  };
+
+  const handleLoadMore = () => {
+    const nextPage = page + 1;
+    fetchConditionProducts(nextPage, true);
+  };
+
+  // Sort products based on selected option
+  const getSortedProducts = () => {
+    const sorted = [...products];
+    
+    switch (sortBy) {
+      case 'price-low':
+        return sorted.sort((a, b) => (a.salePrice || a.price) - (b.salePrice || b.price));
+      case 'price-high':
+        return sorted.sort((a, b) => (b.salePrice || b.price) - (a.salePrice || a.price));
+      case 'name-asc':
+        return sorted.sort((a, b) => a.name.localeCompare(b.name));
+      case 'name-desc':
+        return sorted.sort((a, b) => b.name.localeCompare(a.name));
+      case 'newest':
+        return sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      default:
+        return sorted;
+    }
+  };
+
+  const sortedProducts = getSortedProducts();
+
+  if (loading.initial && !condition) {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="sticky top-0 z-50 bg-white border-b border-gray-200">
           <div className="flex items-center justify-between p-4">
-            <Link to="/conditions" className="p-2">
+            <Link to="/wellness" className="p-2">
               <ChevronLeft size={24} />
             </Link>
             <div className="h-6 bg-gray-200 rounded w-32 animate-pulse"></div>
@@ -77,38 +171,41 @@ const Conditions = () => {
           
           <div className="mb-4">
             <div className="h-6 bg-gray-200 rounded w-48 mb-6"></div>
-            <ProductGrid columns={2} className="gap-3">
-              {[...Array(6)].map((_, i) => (
+            <div className="grid grid-cols-2 lg:grid-cols-5 md:grid-cols-3 gap-3">
+              {[...Array(10)].map((_, i) => (
                 <ProductCardSkeleton key={i} />
               ))}
-            </ProductGrid>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error && !condition) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
         <div className="text-center">
           <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <AlertCircle className="w-10 h-10 text-red-500" />
           </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Error Loading Condition</h1>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Error Loading Wellness Information</h1>
           <p className="text-gray-600 mb-8 max-w-md">{error}</p>
           <div className="flex flex-col sm:flex-row gap-3">
             <button
-              onClick={fetchConditionProducts}
+              onClick={() => {
+                fetchConditionData();
+                fetchConditionProducts(1);
+              }}
               className="bg-blue-600 text-white px-6 py-3 rounded-full font-medium"
             >
               Try Again
             </button>
             <Link
-              to="/conditions"
+              to="/wellness"
               className="bg-gray-100 text-gray-700 px-6 py-3 rounded-full font-medium text-center"
             >
-              Back to Conditions
+              Back to Wellness
             </Link>
           </div>
         </div>
@@ -121,15 +218,15 @@ const Conditions = () => {
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
         <div className="text-center">
           <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Pill size={24} className="text-gray-400" />
+            <Heart size={24} className="text-gray-400" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Condition Not Found</h1>
-          <p className="text-gray-600 mb-8">The condition you're looking for doesn't exist.</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Wellness Area Not Found</h1>
+          <p className="text-gray-600 mb-8">The wellness area you're looking for doesn't exist.</p>
           <Link
-            to="/conditions"
+            to="/wellness"
             className="inline-block bg-blue-600 text-white px-6 py-3 rounded-full font-medium"
           >
-            Browse All Conditions
+            Browse All Wellness Areas
           </Link>
         </div>
       </div>
@@ -140,7 +237,7 @@ const Conditions = () => {
     <div className="min-h-screen bg-gray-50 pb-20">
       <div className="sticky top-0 z-50 bg-white border-b border-gray-200">
         <div className="flex items-center justify-between p-4">
-          <Link to="/conditions" className="p-2 -ml-2 active:bg-gray-100 rounded-full">
+          <Link to="/wellness" className="p-2 -ml-2 active:bg-gray-100 rounded-full">
             <ChevronLeft size={24} className="text-gray-700" />
           </Link>
           
@@ -157,7 +254,7 @@ const Conditions = () => {
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
               <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center">
-                <Pill size={32} className="text-blue-600" />
+                <Heart size={32} className="text-blue-600" />
               </div>
             </div>
             
@@ -172,11 +269,11 @@ const Conditions = () => {
               
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">
-                  {products.length} medication{products.length !== 1 ? 's' : ''}
+                  {products.length} product{products.length !== 1 ? 's' : ''} available
                 </span>
                 
                 <span className="text-xs bg-blue-100 text-blue-600 px-3 py-1 rounded-full font-medium">
-                  Health Condition
+                  Wellness Solution
                 </span>
               </div>
             </div>
@@ -184,10 +281,10 @@ const Conditions = () => {
         </div>
 
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
             <div>
               <h3 className="text-xl font-bold text-gray-900 mb-1">
-                Recommended Medications
+                Recommended Products
               </h3>
               <p className="text-sm text-gray-600">
                 {products.length > 0 
@@ -198,23 +295,62 @@ const Conditions = () => {
             </div>
             
             {products.length > 0 && (
-              <select className="text-sm text-gray-600 bg-gray-100 border-0 rounded-lg px-3 py-2">
-                <option>Sort by: Featured</option>
-                <option>Price: Low to High</option>
-                <option>Price: High to Low</option>
-                <option>Name: A to Z</option>
-              </select>
+              <div className="relative">
+                <button
+                  onClick={() => setShowSortOptions(!showSortOptions)}
+                  className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm hover:bg-gray-50 w-full sm:w-auto"
+                >
+                  <Filter className="w-4 h-4" />
+                  Sort by
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showSortOptions ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showSortOptions && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowSortOptions(false)}></div>
+                    <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                      {[
+                        { value: 'default', label: 'Default' },
+                        { value: 'price-low', label: 'Price: Low to High' },
+                        { value: 'price-high', label: 'Price: High to Low' },
+                        { value: 'name-asc', label: 'Name: A to Z' },
+                        { value: 'name-desc', label: 'Name: Z to A' },
+                        { value: 'newest', label: 'Newest First' }
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => {
+                            setSortBy(option.value);
+                            setShowSortOptions(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
+                            sortBy === option.value ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </div>
 
-          {products.length === 0 ? (
+          {loading.initial && products.length === 0 ? (
+            <div className="grid grid-cols-2 lg:grid-cols-5 md:grid-cols-3 gap-3">
+              {[...Array(10)].map(i => (
+                <ProductCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : products.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
               <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Pill size={32} className="text-gray-400" />
+                <Heart size={32} className="text-gray-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Medications Found</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Products Found</h3>
               <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                We don't have any medications specifically for {condition.name} at the moment.
+                We don't have any products specifically for {condition.name} at the moment.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Link
@@ -224,17 +360,17 @@ const Conditions = () => {
                   Browse Categories
                 </Link>
                 <Link
-                  to="/conditions"
+                  to="/wellness"
                   className="bg-gray-100 text-gray-700 px-6 py-3 rounded-full font-medium text-center"
                 >
-                  Other Conditions
+                  Other Wellness Areas
                 </Link>
               </div>
             </div>
           ) : (
             <>
-              <ProductGrid columns={2} className="gap-3">
-                {products.map((product) => (
+              <div className="grid grid-cols-2 lg:grid-cols-5 md:grid-cols-3 gap-3">
+                {sortedProducts.map((product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
@@ -242,13 +378,55 @@ const Conditions = () => {
                     showWishlist={true}
                   />
                 ))}
-              </ProductGrid>
+                
+                {/* Show skeletons while loading more */}
+                {loading.loadingMore && 
+                  [...Array(productsPerPage)].map((_, index) => (
+                    <ProductCardSkeleton key={`skeleton-${index}`} />
+                  ))
+                }
+              </div>
               
-              {products.length > 10 && (
-                <div className="mt-8 text-center">
-                  <button className="bg-white border border-gray-300 text-gray-700 px-6 py-3 rounded-full font-medium active:bg-gray-50">
-                    Load More
+              {/* Load More Button */}
+              {hasMore && (
+                <div className="mt-8 flex justify-center">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loading.loadingMore}
+                    className="bg-blue-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full font-medium hover:bg-blue-700 transition flex items-center gap-2 sm:gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 min-w-[160px] sm:min-w-[200px]"
+                  >
+                    {loading.loadingMore ? (
+                      <>
+                        <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                        <span className="text-sm sm:text-base">Loading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-sm sm:text-base">Load More</span>
+                        <ChevronDown size={16} className="sm:w-5 sm:h-5" />
+                      </>
+                    )}
                   </button>
+                </div>
+              )}
+              
+              {/* Product Stats */}
+              {products.length > 0 && (
+                <div className="mt-6 text-center">
+                  <div className="inline-flex items-center gap-2 bg-white rounded-full px-4 py-2 shadow-sm">
+                    <span className="text-sm text-gray-600">
+                      Showing <span className="font-bold text-blue-600">{products.length}</span> products
+                    </span>
+                    {!hasMore && (
+                      <>
+                        <span className="text-gray-300">•</span>
+                        <span className="text-sm text-green-600 flex items-center gap-1">
+                          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                          All products loaded
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </>
@@ -264,10 +442,10 @@ const Conditions = () => {
             </div>
             <div>
               <h4 className="font-semibold text-blue-800 text-sm mb-2">
-                Important Medical Disclaimer
+                Wellness & Safety Note
               </h4>
               <p className="text-blue-700 text-xs leading-relaxed">
-                This information is for educational purposes only. Always consult with a qualified healthcare professional before starting any new medication or treatment.
+                These products are designed to support your wellness journey. Always consult with a healthcare professional for personalized advice regarding supplements and wellness products.
               </p>
             </div>
           </div>

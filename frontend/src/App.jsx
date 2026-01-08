@@ -21,7 +21,7 @@ import MyOrders from './pages/customer/MyOrders';
 import MyAccount from './pages/customer/MyAccount';
 import Brands from './pages/customer/Brands';
 import BrandProducts from './pages/customer/BrandProducts';
-import SearchPage from './pages/customer/SearchPage';
+import SearchPage from './pages/customer/SearchResults';
 import NotificationsPage from './pages/customer/NotificationsPage';
 
 // Auth Pages

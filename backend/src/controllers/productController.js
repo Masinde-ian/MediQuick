@@ -1,181 +1,155 @@
-// controllers/productController.js - UPDATED VERSION
+// controllers/productController.js - CORRECT VERSION MATCHING YOUR SCHEMA
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-const getProducts = async (req, res) => {
+// Get all products - CORRECTED VERSION
+exports.getProducts = async (req, res) => {
   try {
-    const { 
-      category, 
-      subcategory,
-      condition, 
-      brand, 
-      search, 
-      minPrice, 
-      maxPrice, 
-      prescriptionRequired,
-      inStock,
-      page = 1, 
-      limit = 20,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query;
+    console.log('📦 GET /api/products - Query params:', req.query);
+    
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
 
-    // Get user from request (from auth middleware)
     const user = req.user;
     
-    // Default: hide prescription drugs for regular browsing
-    // Unless user is ADMIN or DOCTOR, or explicitly asking for prescription drugs
-    let showPrescriptionDrugs = false;
+    // Build where clause
+    const where = {};
     
-    if (user) {
-      if (user.role === 'ADMIN' || user.role === 'DOCTOR') {
-        showPrescriptionDrugs = true;
-      }
-    }
-    
-    // If explicitly asking for prescription drugs in query
-    if (prescriptionRequired === 'true') {
-      showPrescriptionDrugs = true;
-    }
-
-    // Build where clause for filtering
-    const where = {
-      AND: [
-        // Search in name and description
-        search ? { 
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } },
-            { brand: { name: { contains: search, mode: 'insensitive' } } }
-          ]
-        } : {},
-        
-        // Category filter (including subcategories)
-        category ? {
-          OR: [
-            { category: { slug: category } },
-            { category: { parent: { slug: category } } },
-            { category: { parent: { parent: { slug: category } } } }
-          ]
-        } : {},
-        
-        // Specific subcategory filter
-        subcategory ? { category: { slug: subcategory } } : {},
-        
-        // Condition/Illness filter
-        condition ? { conditions: { some: { condition: { slug: condition } } } } : {},
-        
-        // Brand filter
-        brand ? { brand: { slug: brand } } : {},
-        
-        // Price range filter
-        minPrice ? { price: { gte: parseFloat(minPrice) } } : {},
-        maxPrice ? { price: { lte: parseFloat(maxPrice) } } : {},
-        
-        // Prescription requirement filter
-        prescriptionRequired !== undefined ? { 
-          prescriptionRequired: prescriptionRequired === 'true' 
-        } : (!showPrescriptionDrugs ? { prescriptionRequired: false } : {}),
-        
-        // Stock availability filter
-        inStock === 'true' ? { inStock: true } : {},
-        inStock === 'false' ? { inStock: false } : {},
-      ]
-    };
-
-    // Remove empty objects from AND array
-    where.AND = where.AND.filter(condition => Object.keys(condition).length > 0);
-
-    // Sort options
-    const orderBy = {};
-    if (sortBy === 'price') {
-      orderBy.price = sortOrder;
-    } else if (sortBy === 'name') {
-      orderBy.name = sortOrder;
-    } else if (sortBy === 'popular') {
-      // You can add a popularity field later
-      orderBy.createdAt = sortOrder;
+    // Handle prescription drugs based on user role
+    if (user && (user.role === 'ADMIN' || user.role === 'DOCTOR')) {
+      // Admins and doctors can see all products
+      // No prescription filter applied
     } else {
-      orderBy.createdAt = sortOrder;
+      // Regular users only see non-prescription drugs
+      where.prescriptionRequired = false;
+    }
+    
+    // Handle other filters if provided
+    if (req.query.category) {
+      where.category = {
+        slug: req.query.category
+      };
+    }
+    
+    if (req.query.brand) {
+      where.brand = {
+        slug: req.query.brand
+      };
+    }
+    
+    if (req.query.search) {
+      where.OR = [
+        { name: { contains: req.query.search } },
+        { description: { contains: req.query.search } }
+      ];
+    }
+    
+    if (req.query.inStock === 'true') {
+      where.inStock = true;
+    } else if (req.query.inStock === 'false') {
+      where.inStock = false;
+    }
+    
+    if (req.query.minPrice) {
+      where.price = { gte: parseFloat(req.query.minPrice) };
+    }
+    
+    if (req.query.maxPrice) {
+      where.price = { lte: parseFloat(req.query.maxPrice) };
+    }
+    
+    if (req.query.prescriptionRequired === 'true') {
+      where.prescriptionRequired = true;
+    } else if (req.query.prescriptionRequired === 'false') {
+      where.prescriptionRequired = false;
     }
 
-    const products = await prisma.product.findMany({
-      where,
-      include: {
-        category: {
-          include: {
-            parent: {
-              include: {
-                parent: true // Full hierarchy
-              }
-            }
-          }
+    console.log('🔍 WHERE clause:', JSON.stringify(where, null, 2));
+    console.log(`📄 Pagination: page ${page}, limit ${limit}, skip ${skip}`);
+
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc',
         },
-        brand: true,
-        conditions: {
-          include: {
-            condition: true
-          }
-        }
-      },
-      skip: (page - 1) * parseInt(limit),
-      take: parseInt(limit),
-      orderBy
-    });
+        include: {
+          brand: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+        },
+      }),
+      prisma.product.count({ where }),
+    ]);
 
-    const total = await prisma.product.count({ where });
+    console.log(`✅ Found ${products.length} of ${total} products`);
 
-    // Get filter counts for UI
-    const filterCounts = await getFilterCounts(where);
+    // ✅ Parse images JSON string
+    const formattedProducts = products.map(p => ({
+      ...p,
+      images: p.images ? JSON.parse(p.images) : [],
+      image: p.images ? JSON.parse(p.images)[0] ?? null : null, // 👈 convenience
+    }));
 
-    res.json({
+    res.status(200).json({
       success: true,
-      data: {
-        products,
-        pagination: {
-          total,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          totalPages: Math.ceil(total / parseInt(limit))
-        },
-        filterCounts,
-        userRole: user?.role,
-        showPrescriptionDrugs
-      }
+      page,
+      total,
+      products: formattedProducts,
+      totalPages: Math.ceil(total / limit),
+      hasMore: skip + products.length < total,
+      userRole: user?.role
     });
   } catch (error) {
-    console.error('Get products error:', error);
+    console.error('❌ Failed to load products:', error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Failed to load products',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
 
-const getProductBySlug = async (req, res) => {
+// Get product by slug
+exports.getProductBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
-    const user = req.user; // From auth middleware
-    
+    const user = req.user;
+
+    console.log('🔍 Getting product by slug:', slug);
+
     const product = await prisma.product.findUnique({
       where: { slug },
       include: {
-        category: {
-          include: {
-            parent: {
-              include: {
-                parent: true // Full hierarchy for breadcrumbs
-              }
-            }
-          }
+        brand: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
         },
-        brand: true,
-        conditions: {
-          include: {
-            condition: true
-          }
-        }
-      }
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      },
     });
 
     if (!product) {
@@ -189,136 +163,145 @@ const getProductBySlug = async (req, res) => {
     const canViewDetails = !product.prescriptionRequired || 
       (user && (user.role === 'ADMIN' || user.role === 'DOCTOR'));
 
+    // Parse images
+    const parsedImages = product.images ? JSON.parse(product.images) : [];
+    
     // Prepare response
     const responseData = {
-      product: {
-        ...product,
-        // Hide sensitive info for prescription drugs if user not authorized
-        price: canViewDetails ? product.price : null,
-        salePrice: canViewDetails ? product.salePrice : null,
-        ingredients: canViewDetails ? product.ingredients : null,
-        usageInstructions: canViewDetails ? product.usageInstructions : null,
-      },
+      ...product,
+      images: parsedImages,
+      image: parsedImages[0] || null,
       canViewDetails,
       requiresPrescription: product.prescriptionRequired,
+      // Hide sensitive info for prescription drugs if user not authorized
+      price: canViewDetails ? product.price : null,
+      salePrice: canViewDetails ? product.salePrice : null,
+      ingredients: canViewDetails ? product.ingredients : null,
+      usageInstructions: canViewDetails ? product.usageInstructions : null,
       prescriptionMessage: product.prescriptionRequired && !canViewDetails 
         ? 'This medication requires a prescription. Please consult a doctor.' 
         : null
     };
 
-    // Only get related products if user can view them
-    if (canViewDetails || !product.prescriptionRequired) {
-      const relatedProducts = await prisma.product.findMany({
-        where: {
-          AND: [
-            { id: { not: product.id } },
-            {
-              OR: [
-                { categoryId: product.categoryId },
-                { conditions: { some: { conditionId: { in: product.conditions.map(pc => pc.conditionId) } } } }
-              ]
-            },
-            // Hide prescription drugs from related products for non-authorized users
-            user?.role === 'ADMIN' || user?.role === 'DOCTOR' ? {} : { prescriptionRequired: false }
-          ]
-        },
-        include: {
-          brand: true,
-          category: true
-        },
-        take: 8
-      });
-
-      responseData.relatedProducts = relatedProducts;
-    }
-
-    res.json({
+    res.status(200).json({
       success: true,
       data: responseData
     });
+
   } catch (error) {
-    console.error('Get product error:', error);
+    console.error('❌ Failed to load product:', error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Failed to load product',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
 
-// Helper function to get filter counts
-async function getFilterCounts(baseWhere) {
+// Search products
+exports.searchProducts = async (req, res) => {
   try {
-    // Remove prescription filter for counts (so users see all available filters)
-    const countWhere = { ...baseWhere };
-    if (countWhere.AND) {
-      countWhere.AND = countWhere.AND.filter(condition => 
-        !condition.prescriptionRequired
-      );
+    const { q, page = 1, limit = 20 } = req.query;
+    const user = req.user;
+
+    console.log('🔍 Search request:', { q, page, limit });
+
+    if (!q || q.trim() === '') {
+      return res.json({
+        success: true,
+        data: {
+          products: [],
+          total: 0,
+          page: 1,
+          pages: 0
+        }
+      });
     }
 
-    const [brandCounts, conditionCounts, categoryCounts] = await Promise.all([
-      // Brand counts
-      prisma.brand.findMany({
+    const searchTerm = q.trim();
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 20;
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build search query
+    const where = {};
+    
+    // Search in name and description
+    where.OR = [
+      { name: { contains: searchTerm } },
+      { description: { contains: searchTerm } }
+    ];
+    
+    // Handle prescription drugs based on user role
+    if (user && (user.role === 'ADMIN' || user.role === 'DOCTOR')) {
+      // Admins and doctors can search all products
+    } else {
+      // Regular users only see non-prescription drugs
+      where.prescriptionRequired = false;
+    }
+
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: {
+          name: 'asc',
+        },
         include: {
-          _count: {
+          brand: {
             select: {
-              products: {
-                where: countWhere.AND && countWhere.AND.length > 0 ? { AND: countWhere.AND } : {}
-              }
-            }
-          }
-        }
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+        },
       }),
-      
-      // Condition counts
-      prisma.condition.findMany({
-        include: {
-          _count: {
-            select: {
-              products: {
-                where: countWhere.AND && countWhere.AND.length > 0 ? { 
-                  AND: countWhere.AND.filter(cond => !cond.conditions)
-                } : {}
-              }
-            }
-          }
-        }
-      }),
-      
-      // Category counts
-      prisma.category.findMany({
-        where: { isLeaf: true }, // Only count leaf categories
-        include: {
-          _count: {
-            select: {
-              products: {
-                where: countWhere.AND && countWhere.AND.length > 0 ? { 
-                  AND: countWhere.AND.filter(cond => 
-                    !cond.category && !cond.OR?.some(o => o.category)
-                  )
-                } : {}
-              }
-            }
-          }
-        }
-      })
+      prisma.product.count({ where }),
     ]);
 
-    return {
-      brands: brandCounts.filter(brand => brand._count.products > 0),
-      conditions: conditionCounts.filter(condition => condition._count.products > 0),
-      categories: categoryCounts.filter(category => category._count.products > 0)
-    };
-  } catch (error) {
-    console.error('Error getting filter counts:', error);
-    return { brands: [], conditions: [], categories: [] };
-  }
-}
+    // Parse images JSON string
+    const formattedProducts = products.map(p => ({
+      ...p,
+      images: p.images ? JSON.parse(p.images) : [],
+      image: p.images ? JSON.parse(p.images)[0] ?? null : null,
+    }));
 
-const searchProducts = async (req, res) => {
+    res.json({
+      success: true,
+      data: {
+        products: formattedProducts,
+        total,
+        page: pageNum,
+        pages: Math.ceil(total / limitNum),
+        hasMore: skip + products.length < total,
+        userRole: user?.role
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Search products error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Search failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// Quick search for autocomplete
+exports.quickSearch = async (req, res) => {
   try {
-    const { q, limit = 10 } = req.query;
-    const user = req.user; // From auth middleware
+    const { q, limit = 5 } = req.query;
+    const user = req.user;
 
     if (!q || q.trim() === '') {
       return res.json({
@@ -328,77 +311,151 @@ const searchProducts = async (req, res) => {
     }
 
     const searchTerm = q.trim();
-
-    // Check user role for prescription drug visibility
-    const showPrescriptionDrugs = user && (user.role === 'ADMIN' || user.role === 'DOCTOR');
-
+    
     const where = {
       OR: [
-        { name: { contains: searchTerm, mode: 'insensitive' } },
-        { description: { contains: searchTerm, mode: 'insensitive' } },
-        { 
-          brand: { 
-            name: { contains: searchTerm, mode: 'insensitive' } 
-          } 
-        },
-        { 
-          category: { 
-            name: { contains: searchTerm, mode: 'insensitive' } 
-          } 
-        }
-      ],
-      // Hide prescription drugs for non-authorized users
-      ...(showPrescriptionDrugs ? {} : { prescriptionRequired: false })
+        { name: { contains: searchTerm } },
+        { brand: { name: { contains: searchTerm } } }
+      ]
     };
+    
+    // Handle prescription drugs based on user role
+    if (user && (user.role === 'ADMIN' || user.role === 'DOCTOR')) {
+      // Admins and doctors can search all products
+    } else {
+      // Regular users only see non-prescription drugs
+      where.prescriptionRequired = false;
+    }
 
     const products = await prisma.product.findMany({
       where,
-      include: {
-        brand: true,
-        category: {
-          include: {
-            parent: true
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        price: true,
+        salePrice: true,
+        prescriptionRequired: true,
+        images: true,
+        brand: {
+          select: {
+            name: true
           }
         }
       },
-      take: parseInt(limit)
+      take: Number(limit) || 5
     });
 
-    // Process products to hide details for prescription drugs
-    const processedProducts = products.map(product => {
-      const canViewDetails = !product.prescriptionRequired || showPrescriptionDrugs;
-      
-      return {
-        ...product,
-        // Hide sensitive info for prescription drugs if user not authorized
-        price: canViewDetails ? product.price : null,
-        salePrice: canViewDetails ? product.salePrice : null,
-        ingredients: canViewDetails ? product.ingredients : null,
-        usageInstructions: canViewDetails ? product.usageInstructions : null,
-        canViewDetails,
-        requiresPrescription: product.prescriptionRequired
-      };
-    });
+    // Parse images and format response
+    const formattedProducts = products.map(p => ({
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      price: p.price,
+      salePrice: p.salePrice,
+      image: p.images ? JSON.parse(p.images)[0] || null : null,
+      brandName: p.brand.name,
+      requiresPrescription: p.prescriptionRequired
+    }));
 
     res.json({
       success: true,
-      data: { 
-        products: processedProducts,
-        userRole: user?.role,
-        showPrescriptionDrugs
-      }
+      data: { products: formattedProducts }
     });
   } catch (error) {
-    console.error('Search products error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error'
+    console.error('❌ Quick search error:', error);
+    res.json({
+      success: true,
+      data: { products: [] }
     });
   }
 };
 
-module.exports = {
-  getProducts,
-  getProductBySlug,
-  searchProducts
+// Get filter counts (brands and categories)
+exports.getFilterCounts = async (req, res) => {
+  try {
+    const user = req.user;
+    
+    // Build where clause for counts
+    const where = {};
+    
+    // Handle prescription drugs based on user role
+    if (user && (user.role === 'ADMIN' || user.role === 'DOCTOR')) {
+      // Admins and doctors can see all products
+    } else {
+      // Regular users only see non-prescription drugs
+      where.prescriptionRequired = false;
+    }
+
+    const [brands, categories] = await Promise.all([
+      // Get brands with product counts
+      prisma.brand.findMany({
+        include: {
+          _count: {
+            select: { products: { where } }
+          }
+        },
+        where: {
+          products: {
+            some: where
+          }
+        }
+      }),
+      
+      // Get categories with product counts
+      prisma.category.findMany({
+        include: {
+          _count: {
+            select: { products: { where } }
+          }
+        }
+      })
+    ]);
+
+    // Filter out items with zero products
+    const filteredBrands = brands.filter(b => b._count.products > 0);
+    const filteredCategories = categories.filter(c => c._count.products > 0);
+
+    res.json({
+      success: true,
+      data: {
+        brands: filteredBrands.map(b => ({
+          id: b.id,
+          name: b.name,
+          slug: b.slug,
+          count: b._count.products
+        })),
+        categories: filteredCategories.map(c => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          count: c._count.products
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get filter counts error:', error);
+    res.json({
+      success: true,
+      data: {
+        brands: [],
+        categories: []
+      }
+    });
+  }
+};
+
+// Test endpoint
+exports.testEndpoint = (req, res) => {
+  res.json({
+    success: true,
+    message: 'Product API is working',
+    timestamp: new Date().toISOString(),
+    user: req.user ? {
+      id: req.user.id,
+      email: req.user.email,
+      role: req.user.role
+    } : 'No user authenticated'
+  });
 };

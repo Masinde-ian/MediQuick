@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import NotificationBell from '../NotificationBell';
+import SearchBar from '../SearchBar'; // Import the SearchBar component
 import { 
   Menu, 
   X, 
   ShoppingCart, 
   User, 
-  Search, 
   ChevronDown,
   Home,
   Package,
@@ -22,7 +22,6 @@ const Header = () => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [isScrolled, setIsScrolled] = useState(false);
 
   // Handle scroll effect
@@ -39,17 +38,6 @@ const Header = () => {
     setIsMenuOpen(false);
     setIsDropdownOpen(false);
     navigate('/');
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate('/products', { 
-        state: { searchQuery: searchQuery.trim() } 
-      });
-      setSearchQuery('');
-      setIsMenuOpen(false);
-    }
   };
 
   const toggleMenu = () => {
@@ -72,7 +60,7 @@ const Header = () => {
   const navItems = [
     { path: '/', label: 'Home', icon: <Home size={18} /> },
     { path: '/categories', label: 'Categories', icon: <Package size={18} /> },
-    { path: '/conditions', label: 'Conditions', icon: <HeartPulse size={18} /> },
+    { path: '/wellness', label: 'Wellness', icon: <HeartPulse size={18} /> },
     { path: '/brands', label: 'Brands', icon: <Tag size={18} /> },
     { path: '/my-orders', label: 'My Orders', icon: <ClipboardList size={18} /> },
   ];
@@ -110,27 +98,7 @@ const Header = () => {
 
             {/* Search Bar - Desktop (Centered) */}
             <div className="hidden lg:flex flex-1 max-w-2xl mx-8">
-              <form onSubmit={handleSearch} className="w-full">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search medicines, brands, conditions..."
-                    className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm shadow-sm"
-                  />
-                  <Search 
-                    className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" 
-                    size={20} 
-                  />
-                  <button
-                    type="submit"
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-600 hover:text-blue-700 font-medium text-sm"
-                  >
-                    Search
-                  </button>
-                </div>
-              </form>
+              <SearchBar />
             </div>
 
             {/* Desktop Actions - Right Side */}
@@ -287,19 +255,7 @@ const Header = () => {
 
           {/* Mobile Search Bar */}
           <div className="lg:hidden py-4 border-t border-gray-100">
-            <form onSubmit={handleSearch} className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search medicines, brands, conditions..."
-                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm shadow-sm"
-              />
-              <Search 
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" 
-                size={20} 
-              />
-            </form>
+            <SearchBar mobile onSearch={closeAllMenus} />
           </div>
         </div>
       </header>

@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { Heart, Plus, Check } from 'lucide-react';
 
 /* =====================================================
@@ -9,7 +8,6 @@ const ProductCard = ({ product, showAddToCart = true, showWishlist = true }) => 
   if (!product) return null;
 
   const {
-    slug,
     name,
     price,
     salePrice,
@@ -172,7 +170,7 @@ const ProductCard = ({ product, showAddToCart = true, showWishlist = true }) => 
       )}
 
       {/* IMAGE */}
-      <Link to={`/products/${slug}`} className="block">
+      <div className="block">
         <div className="relative h-40 bg-gray-50 rounded-t-xl overflow-hidden">
           {/* LOADING STATE */}
           {imgLoading && imageUrl && (
@@ -237,7 +235,7 @@ const ProductCard = ({ product, showAddToCart = true, showWishlist = true }) => 
             </button>
           )}
         </div>
-      </Link>
+      </div>
 
       {/* CONTENT */}
       <div className="p-3">
@@ -247,14 +245,14 @@ const ProductCard = ({ product, showAddToCart = true, showWishlist = true }) => 
           </span>
         )}
 
-        <Link to={`/products/${slug}`}>
-          <h3 className="text-sm font-medium text-gray-900 line-clamp-2 min-h-[40px] hover:text-blue-600 transition">
-            {name}
-          </h3>
-        </Link>
+        <h3 className="text-sm font-medium text-gray-900 line-clamp-2 min-h-[40px]">
+          {name}
+        </h3>
 
-        <div className="mt-2 flex items-center justify-between">
-          <div>
+        {/* PRICE SECTION - Responsive layout */}
+        <div className="mt-2">
+          {/* Price displayed above on small screens */}
+          <div className="sm:hidden mb-2">
             {isOnSale ? (
               <>
                 <div className="font-bold text-gray-900">
@@ -271,28 +269,49 @@ const ProductCard = ({ product, showAddToCart = true, showWishlist = true }) => 
             )}
           </div>
 
-          {showAddToCart && (
-            <button
-              onClick={handleAddToCart}
-              disabled={!inStock || isAddingToCart}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1 transition min-w-[100px] justify-center
-                ${
-                  inStock
-                    ? 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }
-              `}
-            >
-              {isAddingToCart ? (
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
+          <div className="flex items-center justify-between">
+            {/* Price hidden on small screens (shown above) */}
+            <div className="hidden sm:block">
+              {isOnSale ? (
                 <>
-                  {inStock && <Plus size={12} />}
-                  {inStock ? 'Add to Cart' : 'Out of Stock'}
+                  <div className="font-bold text-gray-900">
+                    {formatPrice(salePrice)}
+                  </div>
+                  <div className="text-sm text-gray-400 line-through">
+                    {formatPrice(price)}
+                  </div>
                 </>
+              ) : (
+                <div className="font-bold text-gray-900">
+                  {formatPrice(price)}
+                </div>
               )}
-            </button>
-          )}
+            </div>
+
+            {/* ADD TO CART BUTTON */}
+            {showAddToCart && (
+              <button
+                onClick={handleAddToCart}
+                disabled={!inStock || isAddingToCart}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1 transition min-w-[100px] justify-center w-full sm:w-auto
+                  ${
+                    inStock
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }
+                `}
+              >
+                {isAddingToCart ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    {inStock && <Plus size={12} />}
+                    {inStock ? 'Add to Cart' : 'Out of Stock'}
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
