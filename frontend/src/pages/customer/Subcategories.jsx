@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { categoryAPI, productAPI } from '../../services/api';
-import ProductCard, { ProductGrid, ProductCardSkeleton, Notification } from '../../components/ProductCard';
+import ProductCard, { ProductGrid, ProductCardSkeleton } from '../../components/ProductCard';
+import Notification from '../../components/Notification';
 import { ChevronRight, Grid, List, Filter, ChevronDown } from 'lucide-react';
 
 const Subcategories = () => {
